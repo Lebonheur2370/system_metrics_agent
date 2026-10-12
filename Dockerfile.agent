@@ -1,0 +1,36 @@
+ARG PYTHON_VERSION=3.12.15
+
+# ---------- Étape 1 : builder ----------
+FROM python:${PYTHON_VERSION}-slim AS builder
+
+WORKDIR /build
+
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+# ---------- Étape 2 : image finale ----------
+FROM python:${PYTHON_VERSION}-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PATH="/opt/venv/bin:$PATH"
+
+# procps fournit la commande "uptime" appelée par le collecteur
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends procps && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN groupadd --system app && \
+    useradd --system --gid app --no-create-home --no-log-init app
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
+COPY app/ ./app/
+
+USER app
+
+CMD ["python", "-m", "app.agent"]
