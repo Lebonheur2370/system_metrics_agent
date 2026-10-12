@@ -1,1 +1,27 @@
+# Git et CI
+.git
+.gitignore
+.github
+
+# Environnements virtuels et secrets
+.venv
+venv
 .env
+
+# Caches et artefacts Python
+**/__pycache__
+*.pyc
+.pytest_cache
+.coverage
+coverage.xml
+htmlcov
+.scannerwork
+
+# Fichiers inutiles dans l'image de production
+app/tests
+requirements-dev.txt
+sonar-project.properties
+README.md
+Dockerfile*
+docker-compose*.yml
+.dockerignore
