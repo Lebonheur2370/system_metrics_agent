@@ -9,8 +9,9 @@ from app.collector import (
 )
 
 
+@patch("app.collector.platform.system", return_value="Linux")
 @patch("app.collector.subprocess.run")
-def test_get_load_average_success(mock_run):
+def test_get_load_average_success(mock_run, _mock_system):
     mock_run.return_value = Mock(
         stdout=" 10:00:00 up 2 days, load average: 0.10, 0.20, 0.30\n"
     )
@@ -24,12 +25,24 @@ def test_get_load_average_success(mock_run):
     }
 
 
+@patch("app.collector.platform.system", return_value="Linux")
 @patch("app.collector.subprocess.run")
-def test_get_load_average_command_error(mock_run):
+def test_get_load_average_command_error(mock_run, _mock_system):
     mock_run.side_effect = FileNotFoundError("uptime absent")
 
     with pytest.raises(MetricsCollectionError):
         get_load_average()
+
+
+@patch("app.collector.platform.system", return_value="Windows")
+@patch("app.collector.subprocess.run")
+def test_get_load_average_windows_returns_none(mock_run, _mock_system):
+    result = get_load_average()
+
+    assert result == {"load_1m": None, "load_5m": None, "load_15m": None}
+    mock_run.assert_not_called()
+    
+    
 
 
 @patch("app.collector.get_load_average")
@@ -62,4 +75,4 @@ def test_collect_system_metrics(
     assert metrics["cpu"]["logical_cores"] == 8
     assert metrics["memory"]["percent"] == 60.0
     assert metrics["system"]["load_1m"] == 0.1
-    assert "timestamp" in metrics
+    assert "timestamp" in metrics    
