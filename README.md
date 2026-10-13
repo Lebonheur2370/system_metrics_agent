@@ -1,3 +1,5 @@
+# System Metrics Agent
+
 > **TP DevOps : conteneuriser et automatiser le déploiement d'un agent de métriques**
 >
 > **Étudiant :** Le Bonheur BAMBO\
@@ -5,7 +7,6 @@
 > **Établissement :** Institut Africain d'Informatique (IAI), Gabon\
 > **Année académique :** 2026-2027
 
-# System Metrics Agent
 [![CI/CD](https://github.com/Lebonheur2370/system_metrics_agent/actions/workflows/ci-cd.yml/badge.svg)](https://github.com/Lebonheur2370/system_metrics_agent/actions/workflows/ci-cd.yml)
 [![Quality Gate](https://sonarcloud.io/api/project_badges/measure?project=Lebonheur2370_system_metrics_agent&metric=alert_status)](https://sonarcloud.io/summary/new_code?id=Lebonheur2370_system_metrics_agent)
 [![Coverage](https://sonarcloud.io/api/project_badges/measure?project=Lebonheur2370_system_metrics_agent&metric=coverage)](https://sonarcloud.io/summary/new_code?id=Lebonheur2370_system_metrics_agent)
@@ -40,10 +41,14 @@ Agent Python modulaire qui collecte les métriques système (CPU, RAM, charge) e
 | Image de base `python:3.12.15-slim` | 177 Mo |
 | Image `metrics-api` | 257 Mo |
 | Image `metrics-agent` | 259 Mo (+2 Mo pour `procps`) |
-| Tests | 20 tests réussis |
+| Tests | 24 tests réussis |
 | Couverture (SonarQube Cloud) | 83,5 % |
 | Quality Gate | Validée |
 | Vulnérabilités HIGH / CRITICAL corrigeables | 0 |
+
+### Bonus : supervision
+
+L'API expose ses métriques au format Prometheus sur `/prometheus`. Prometheus les collecte toutes les 5 secondes et Grafana les affiche dans un tableau de bord provisionné automatiquement. Voir la section [Supervision avec Prometheus et Grafana](#supervision-avec-prometheus-et-grafana).
 
 ### Agent conteneurisé et machine hôte
 
@@ -70,6 +75,7 @@ L'image de base a été volontairement remplacée par `python:3.12.7-slim` (Debi
 - Collecte de la charge système via la commande `uptime`, exécutée avec `subprocess`.
 - Envoi HTTP des métriques au format JSON, à intervalle régulier.
 - API de réception FastAPI avec stockage en mémoire.
+- Exposition des métriques au format Prometheus et tableau de bord Grafana.
 - Configuration externe par variables d'environnement ou fichier `.env`.
 - Gestion des erreurs réseau, des timeouts et des erreurs de collecte.
 
@@ -89,6 +95,12 @@ system_metrics_agent/
 │   ├── formatter.py             # Normalisation du payload
 │   ├── sender.py                # Envoi HTTP
 │   └── tests/                   # Tests unitaires pytest
+├── monitoring/
+│   ├── prometheus/
+│   │   └── prometheus.yml       # Configuration de la collecte
+│   └── grafana/
+│       ├── dashboards/          # Tableau de bord JSON
+│       └── provisioning/        # Source de données et chargement automatique
 ├── .dockerignore
 ├── .env.example                 # Modèle de configuration
 ├── Dockerfile.agent
@@ -184,6 +196,7 @@ Avec Docker Compose, `METRICS_ENDPOINT` est automatiquement remplacé par `http:
 | `POST` | `/metrics` | Réception d'une métrique | `201`, ou `422` si le payload est invalide |
 | `GET` | `/metrics` | Liste de toutes les métriques reçues | `200` |
 | `GET` | `/metrics/latest` | Dernière métrique reçue | `200`, ou `404` si aucune métrique |
+| `GET` | `/prometheus` | Métriques au format Prometheus | `200` (`text/plain`) |
 
 Exemple de métrique envoyée par l'agent :
 
@@ -205,6 +218,47 @@ Exemple de métrique envoyée par l'agent :
   }
 }
 ```
+
+## Supervision avec Prometheus et Grafana
+
+La supervision est déclarée dans `docker-compose.yml` sous le profil `monitoring` : un simple `docker compose up` ne lance que l'API et l'agent, comme avant.
+
+```bash
+docker compose --profile monitoring up --build
+```
+
+| Service | Adresse | Rôle |
+|---|---|---|
+| Prometheus | `http://localhost:9090` | Collecte et stockage des métriques (7 jours) |
+| Grafana | `http://localhost:3000` | Tableau de bord *System Metrics Agent* |
+
+Les identifiants de Grafana sont lus dans `.env` (`GRAFANA_ADMIN_USER`, `GRAFANA_ADMIN_PASSWORD`). Le démarrage échoue volontairement si le mot de passe n'est pas défini.
+
+```mermaid
+flowchart LR
+    A[Agent] -->|POST /metrics| B[API FastAPI]
+    C[Prometheus] -->|scrape toutes les 5 s<br/>GET /prometheus| B
+    D[Grafana] -->|requêtes PromQL| C
+```
+
+### Métriques exposées
+
+Toutes les séries portent l'étiquette `hostname`, ce qui permet de suivre plusieurs agents.
+
+| Métrique | Type | Description |
+|---|---|---|
+| `agent_cpu_percent` | gauge | Utilisation CPU (%) |
+| `agent_cpu_logical_cores` | gauge | Nombre de cœurs logiques |
+| `agent_memory_percent` | gauge | Mémoire utilisée (%) |
+| `agent_memory_used_bytes` | gauge | Mémoire utilisée (octets) |
+| `agent_memory_total_bytes` | gauge | Mémoire totale (octets) |
+| `agent_load_1m`, `agent_load_5m`, `agent_load_15m` | gauge | Charge système (absente sous Windows) |
+| `agent_metrics_received_total` | counter | Nombre de métriques reçues |
+| `agent_last_received_timestamp_seconds` | gauge | Horodatage du dernier envoi |
+
+### Tableau de bord
+
+Le tableau de bord est créé automatiquement au démarrage (provisioning) et s'ouvre en page d'accueil. Il affiche le temps écoulé depuis la dernière métrique (rouge au-delà de 30 secondes : l'agent ne répond plus), le CPU, la mémoire, le débit de métriques reçues, ainsi que les courbes d'utilisation CPU, mémoire et de charge système. Un filtre *Machine* permet de sélectionner un ou plusieurs agents.
 
 ## Tests
 
