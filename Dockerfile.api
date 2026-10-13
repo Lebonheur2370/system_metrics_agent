@@ -1,5 +1,5 @@
 # Version figée : build reproductible, jamais "latest"
-ARG PYTHON_VERSION=3.12.7
+ARG PYTHON_VERSION=ARG PYTHON_VERSION=3.12.15
 
 # ---------- Étape 1 : builder ----------
 FROM python:${PYTHON_VERSION}-slim AS builder
