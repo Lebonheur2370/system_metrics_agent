@@ -1,0 +1,10 @@
+# Configuration Prometheus : collecte des métriques exposées par l'API
+global:
+  scrape_interval: 5s       # aligné sur l'intervalle de l'agent
+  evaluation_interval: 15s
+
+scrape_configs:
+  - job_name: metrics-api
+    metrics_path: /prometheus   # /metrics est déjà utilisé par l'API pour le JSON
+    static_configs:
+      - targets: ["api:8000"]   # nom du service Docker Compose

@@ -1,0 +1,11 @@
+# Chargement automatique des tableaux de bord JSON
+apiVersion: 1
+
+providers:
+  - name: system-metrics
+    folder: System Metrics
+    type: file
+    disableDeletion: true
+    allowUiUpdates: false
+    options:
+      path: /etc/grafana/dashboards
